@@ -12,7 +12,7 @@ import os
 os.environ["GOOGLE_API_KEY"] = os.getenv("GEMINI_API_KEY")
 app = FastAPI()
 
-embeddings = GoogleGenerativeAIEmbeddings(model="text-embedding-004")
+embeddings = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
 
 client = QdrantClient(
     url=os.getenv("QDRANT_URL"),
@@ -57,8 +57,8 @@ def add_texts(body: TextInput):
 class QueryInput(BaseModel):
     query: str
 
-@app.post("/search")
-def search(body: QueryInput):
+@app.post("/chat")
+def chat(body: QueryInput):
     results = vectorstore.similarity_search(body.query, k=3)
 
     context = "\n\n".join([doc.page_content for doc in results])
