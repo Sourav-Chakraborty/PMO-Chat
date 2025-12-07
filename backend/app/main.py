@@ -9,7 +9,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 import os
 
-os.environ["GOOGLE_API_KEY"] ='AIzaSyAnwP93cloaMU3CqSEVhb9M763rRO_q970'
+os.environ["GOOGLE_API_KEY"] = os.getenv("GEMINI_API_KEY")
 app = FastAPI()
 
 embeddings = GoogleGenerativeAIEmbeddings(model="text-embedding-004")
