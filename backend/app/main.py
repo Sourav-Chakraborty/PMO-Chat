@@ -34,14 +34,25 @@ llm = ChatGoogleGenerativeAI(
 )
 
 prompt = ChatPromptTemplate.from_template("""
-Answer the question based ONLY on the following context:
+You are a helpful AI assistant.
+
+You will receive:
+1. CONTEXT retrieved from a vector database (may be empty or irrelevant)
+2. A USER QUESTION
+
+Rules:
+- If the CONTEXT is relevant, use it.
+- If the CONTEXT is empty, irrelevant, or unhelpful, IGNORE it completely.
+- You are allowed to answer using your general world knowledge.
+- Do NOT say "Based on the context" if you are not using it.
 
 CONTEXT:
 {context}
 
-QUESTION: {question}
+QUESTION:
+{question}
 
-ANSWER:
+FINAL ANSWER:
 """)
 
 class TextInput(BaseModel):
