@@ -6,3 +6,6 @@ langchain
 langchain-google-genai
 langchain-qdrant
 qdrant-client
+python-multipart 
+pdfplumber
+PyMuPDF
