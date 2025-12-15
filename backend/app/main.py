@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, UploadFile, File, Form
 from pydantic import BaseModel
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_qdrant import QdrantVectorStore
@@ -6,8 +6,13 @@ from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
+from langchain_core.output_parsers import JsonOutputParser,StrOutputParser
+from typing import List
+from .extractPDF import extract_pdf_contents
+from .prompts import documentSummeryPrompt,LLMQueryPrompt
 import os
+from  langchain_core.documents  import Document
+
 
 os.environ["GOOGLE_API_KEY"] = os.getenv("GEMINI_API_KEY")
 app = FastAPI()
@@ -33,37 +38,51 @@ llm = ChatGoogleGenerativeAI(
     temperature=0.1
 )
 
-prompt = ChatPromptTemplate.from_template("""
-You are a helpful AI assistant.
+promptForQuery = ChatPromptTemplate.from_template(LLMQueryPrompt)
 
-You will receive:
-1. CONTEXT retrieved from a vector database (may be empty or irrelevant)
-2. A USER QUESTION
-
-Rules:
-- If the CONTEXT is relevant, use it.
-- If the CONTEXT is empty, irrelevant, or unhelpful, IGNORE it completely.
-- You are allowed to answer using your general world knowledge.
-- Do NOT say "Based on the context" if you are not using it.
-
-CONTEXT:
-{context}
-
-QUESTION:
-{question}
-
-FINAL ANSWER:
-""")
+promptForSummery = ChatPromptTemplate.from_template(documentSummeryPrompt)
 
 class TextInput(BaseModel):
     texts: str
 
 @app.post("/add-texts")
-def add_texts(body: TextInput):
-    print(body.texts)
-    texts = [body.texts]
-    vectorstore.add_texts(texts)
-    return {"message": "Texts added to vectorstore"}
+async def add_texts(
+    files: List[UploadFile] = File(...),
+    project_name: str = Form(...),
+    project_date: str = Form(...),
+    manager_name: str = Form(...),
+    department: str = Form(None),
+):
+    extracted_results = []
+
+    for pdf in files:
+        # Simple validation for PDF
+        if pdf.content_type != "application/pdf":
+            continue  # or skip or return error
+        pdf_bytes = await pdf.read()
+        pdf_data = extract_pdf_contents(pdf_bytes)
+        
+        extracted_results.append({
+            "filename": pdf.filename,
+            "extracted": pdf_data
+        })
+
+    chain = promptForSummery | llm |  JsonOutputParser()
+    
+    answer = chain.invoke({
+        "context": extracted_results
+    })
+
+    documents = []
+    for item in answer:
+        documents.append(Document(page_content=item["summary"], metadata={"title": item["title"], "category": item["category"]}))
+    
+    vectorstore.add_documents(documents)
+    
+    return {
+       "response":"Embedding completed successfully",
+       "documents":documents
+    }
 
 class QueryInput(BaseModel):
     query: str
@@ -74,7 +93,7 @@ def chat(body: QueryInput):
 
     context = "\n\n".join([doc.page_content for doc in results])
 
-    chain = prompt | llm | StrOutputParser()
+    chain = promptForQuery | llm | StrOutputParser()
 
     answer = chain.invoke({"context": context, "question": body.query})
 
